@@ -1,0 +1,21 @@
+{
+  "configProperties": {
+    "Ftps.Host": "localhost",
+    "Ftps.User": "anonymous",
+    "Ftps.Pass": "anonymous",
+    "Ftps.Port": 21,
+    "Ftps.ValidateAnyCertificate": true,
+    "Ftps.Root": "/",
+
+    "Proxy.Use": false,
+    "Proxy.Host": "localhost",
+    "Proxy.Port": 3128,
+    "Proxy.Anonymous": true,
+    "Proxy.User": "",
+    "Proxy.Pass": "",
+
+    "Mirror.Path": "mirror",
+
+    "LogToConsole": true
+  }
+}
