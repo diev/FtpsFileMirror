@@ -12,7 +12,7 @@ on:
     
 jobs:
   release:
-    name: Releases
+    name: Release
     strategy:
       matrix:
         kind: ['linux', 'windows', 'macOS']
@@ -27,6 +27,8 @@ jobs:
             os: macos-latest
             target: osx-x64
     runs-on: ${{ matrix.os }}
+    permissions:
+      packages: write
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -41,16 +43,14 @@ jobs:
         run: |
           tag=$(git describe --tags --abbrev=0)
           release_name="FtpsFileMirror-$tag-${{ matrix.target }}"
+          github_url=${{ github.server_url }}/${{ github.repository }}
           # Build everything
           dotnet publish FtpsClient/FtpsClient.csproj --runtime "${{ matrix.target }}" --no-self-contained -c Release -o "$release_name"
-          
+          echo See sources: $github_url > "$release_name/readme.txt"
           # Pack files
           if [ "${{ matrix.target }}" == "win-x64" ]; then
-            # Pack to zip for Windows
-            echo Info: ${{ steps.Build.outputs.url }}> "$release_name/readme.txt"
             7z a -tzip "${release_name}.zip" "./${release_name}/*"
           else
-            echo "Info: ${{ steps.Build.outputs.url }}" > "$release_name/readme.txt"
             tar czvf "${release_name}.tar.gz" "$release_name"
           fi
           # Delete output directory
