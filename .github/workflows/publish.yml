@@ -46,7 +46,7 @@ jobs:
           github_url=${{ github.server_url }}/${{ github.repository }}
           # Build everything
           dotnet publish FtpsClient/FtpsClient.csproj --runtime "${{ matrix.target }}" --no-self-contained -c Release -o "$release_name"
-          echo See sources: $github_url > "$release_name/readme.txt"
+          #echo See sources: $github_url > "$release_name/readme.txt"
           # Pack files
           if [ "${{ matrix.target }}" == "win-x64" ]; then
             7z a -tzip "${release_name}.zip" "./${release_name}/*"
