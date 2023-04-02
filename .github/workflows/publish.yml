@@ -48,7 +48,7 @@ jobs:
           release_name="${{ env.pack }}-$tag-${{ matrix.target }}"
           # Build everything
           dotnet publish ${{ env.proj }}/${{ env.proj }}.csproj --runtime "${{ matrix.target }}" --no-self-contained -c Release -o "$release_name"
-          echo Source: ${{ url }} > "${release_name}/readme.txt"
+          echo Source: ${{ env.url }} > "${release_name}/readme.txt"
           # Pack files
           if [ "${{ matrix.target }}" == "win-x64" ]; then
             7z a -tzip "${release_name}.zip" "./${release_name}/*"
