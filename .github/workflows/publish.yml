@@ -34,6 +34,7 @@ jobs:
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
+      - run: git fetch --prune --unshallow
 
       - name: Setup dotnet
         uses: actions/setup-dotnet@v3
@@ -45,10 +46,10 @@ jobs:
         run: |
           tag=$(git describe --tags --abbrev=0)
           release_name="FtpsFileMirror-$tag-${{ matrix.target }}"
-          github_url=${{ github.server_url }}/${{ github.repository }}/
+          github_url=${{ github.server_url }}/${{ github.repository }}
           # Build everything
           dotnet publish FtpsClient/FtpsClient.csproj --runtime "${{ matrix.target }}" --no-self-contained -c Release -o "$release_name"
-          #echo See sources: $github_url > "$release_name/readme.txt"
+          echo See sources: $github_url > "$release_name/readme.txt"
           # Pack files
           if [ "${{ matrix.target }}" == "win-x64" ]; then
             7z a -tzip "${release_name}.zip" "./${release_name}/*"
