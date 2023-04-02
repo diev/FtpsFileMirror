@@ -2,6 +2,11 @@
 
 name: Publish .NET app to GitHub Releases
 
+env:
+  pack: FtpsFileMirror
+  proj: FtpsClient
+  url: ${{ github.server_url }}/${{ github.repository }}
+
 on:
   push:
     tags:
@@ -57,10 +62,6 @@ jobs:
           fi
           # Delete output directory
           rm -r "$release_name"
-        env:
-          pack: FtpsFileMirror
-          proj: FtpsClient
-          url: ${{ github.server_url }}/${{ github.repository }}
 
       - name: Publish
         uses: softprops/action-gh-release@v1
