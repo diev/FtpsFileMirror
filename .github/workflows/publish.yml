@@ -15,14 +15,14 @@ jobs:
     name: Release
     strategy:
       matrix:
-        kind: ['linux', 'windows', 'macOS']
+        kind: ['windows', 'linux', 'macOS']
         include:
-          - kind: linux
-            os: ubuntu-latest
-            target: linux-x64
           - kind: windows
             os: windows-latest
             target: win-x64
+          - kind: linux
+            os: ubuntu-latest
+            target: linux-x64
           - kind: macOS
             os: macos-latest
             target: osx-x64
@@ -32,6 +32,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
 
       - name: Setup dotnet
         uses: actions/setup-dotnet@v3
@@ -43,7 +45,7 @@ jobs:
         run: |
           tag=$(git describe --tags --abbrev=0)
           release_name="FtpsFileMirror-$tag-${{ matrix.target }}"
-          github_url=${{ github.server_url }}/${{ github.repository }}
+          github_url=${{ github.server_url }}/${{ github.repository }}/
           # Build everything
           dotnet publish FtpsClient/FtpsClient.csproj --runtime "${{ matrix.target }}" --no-self-contained -c Release -o "$release_name"
           #echo See sources: $github_url > "$release_name/readme.txt"
