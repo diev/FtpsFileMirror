@@ -10,7 +10,7 @@
     <Copyright>Copyright 2023 Dmitrii Evdokimov</Copyright>
     <PackageProjectUrl>https://github.com/diev/FtpsFileMirror/</PackageProjectUrl>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
-    <RepositoryUrl>https://github.com/diev/FtpsFileMirror.git</RepositoryUrl>
+    <RepositoryUrl>git://github.com/diev/FtpsFileMirror.git</RepositoryUrl>
     <Company>diev</Company>
   </PropertyGroup>
 

@@ -9,24 +9,23 @@ on:
   #release:
   #  types: [published]
   workflow_dispatch:
-    
+
 jobs:
   release:
     name: Release
     strategy:
       matrix:
-        #kind: ['windows', 'linux', 'macOS']
-        kind: ['windows']
+        kind: ['windows', 'linux', 'macOS']
         include:
           - kind: windows
             os: windows-latest
             target: win-x64
-          #- kind: linux
-          #  os: ubuntu-latest
-          #  target: linux-x64
-          #- kind: macOS
-          #  os: macos-latest
-          #  target: osx-x64
+          - kind: linux
+            os: ubuntu-latest
+            target: linux-x64
+          - kind: macOS
+            os: macos-latest
+            target: osx-x64
     runs-on: ${{ matrix.os }}
     permissions:
       contents: write
@@ -46,11 +45,11 @@ jobs:
         shell: bash
         run: |
           tag=$(git describe --tags --abbrev=0)
-          release_name="FtpsFileMirror-$tag-${{ matrix.target }}"
+          release_name="${{ env.pack }}-$tag-${{ matrix.target }}"
           github_url=${{ github.server_url }}/${{ github.repository }}
           # Build everything
-          dotnet publish FtpsClient/FtpsClient.csproj --runtime "${{ matrix.target }}" --no-self-contained -c Release -o "$release_name"
-          echo See sources: $github_url > "$release_name/readme.txt"
+          dotnet publish ${{ env.proj }}/${{ env.proj }}.csproj --runtime "${{ matrix.target }}" --no-self-contained -c Release -o "$release_name"
+          echo Source: $github_url > "${release_name}/readme.txt"
           # Pack files
           if [ "${{ matrix.target }}" == "win-x64" ]; then
             7z a -tzip "${release_name}.zip" "./${release_name}/*"
@@ -59,9 +58,15 @@ jobs:
           fi
           # Delete output directory
           rm -r "$release_name"
+        env:
+          pack: FtpsFileMirror
+          proj: FtpsClient
+
       - name: Publish
         uses: softprops/action-gh-release@v1
         with:
-          files: "Ftps*"
+          files: |
+            "*.zip"
+            "*.tar.gz"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
