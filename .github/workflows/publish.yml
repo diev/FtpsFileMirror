@@ -46,10 +46,9 @@ jobs:
         run: |
           tag=$(git describe --tags --abbrev=0)
           release_name="${{ env.pack }}-$tag-${{ matrix.target }}"
-          github_url=${{ github.server_url }}/${{ github.repository }}
           # Build everything
           dotnet publish ${{ env.proj }}/${{ env.proj }}.csproj --runtime "${{ matrix.target }}" --no-self-contained -c Release -o "$release_name"
-          echo Source: $github_url > "${release_name}/readme.txt"
+          echo Source: ${{ url }} > "${release_name}/readme.txt"
           # Pack files
           if [ "${{ matrix.target }}" == "win-x64" ]; then
             7z a -tzip "${release_name}.zip" "./${release_name}/*"
@@ -61,6 +60,7 @@ jobs:
         env:
           pack: FtpsFileMirror
           proj: FtpsClient
+          url: ${{ github.server_url }}/${{ github.repository }}
 
       - name: Publish
         uses: softprops/action-gh-release@v1
