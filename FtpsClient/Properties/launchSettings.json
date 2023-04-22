@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "FtpsClient": {
+      "commandName": "Project",
+      "commandLineArgs": "-l"
+    }
+  }
+}

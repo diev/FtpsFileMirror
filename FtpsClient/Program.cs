@@ -1,7 +1,7 @@
 ﻿#region License
 //------------------------------------------------------------------------------
 // Copyright (c) Dmitrii Evdokimov
-// Open ource software https://github.com/diev/
+// Open source software https://github.com/diev/
 // 
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,71 +18,219 @@
 #endregion
 
 using System.Net;
+using System.Net.Security;
+using System.Reflection;
+using System.Security.Cryptography.X509Certificates;
+using System.Text;
 
 using FluentFTP;
-using FluentFTP.Proxy.SyncProxy;
+using FluentFTP.Client.BaseClient;
+using FluentFTP.Rules;
 
-var ftpsHost = AppContext.GetData("Ftps.Host") as string ?? "localhost";
-var ftpsPort = int.Parse(AppContext.GetData("Ftps.Port") as string ?? "21");
-var ftpsValidateAnyCertificate = bool.Parse(AppContext.GetData("Ftps.ValidateAnyCertificate") as string ?? "false");
-var ftpsUser = AppContext.GetData("Ftps.User") as string ?? "anonymous";
-var ftpsPass = AppContext.GetData("Ftps.Pass") as string ?? "anonymous";
-var ftpsRoot = AppContext.GetData("Ftps.Root") as string ?? "/";
+using Microsoft.Extensions.Configuration;
 
-var proxyUse = bool.Parse(AppContext.GetData("Proxy.Use") as string ?? "false");
-var proxyHost = AppContext.GetData("Proxy.Host") as string ?? "localhost";
-var proxyPort = int.Parse(AppContext.GetData("Proxy.Port") as string ?? "3128");
-var proxyAnonymous = bool.Parse(AppContext.GetData("Proxy.Anonymous") as string ?? "false");
-var proxyUser = AppContext.GetData("Proxy.User") as string ?? "anonymous";
-var proxyPass = AppContext.GetData("Proxy.Pass") as string ?? "anonymous";
+namespace FtpsClient;
 
-var mirrorPath = AppContext.GetData("Mirror.Path") as string ?? ".";
-
-var logToConsole = bool.Parse(AppContext.GetData("LogToConsole") as string ?? "false");
-
-if (proxyUse)
+internal class Program
 {
-    ProxyDownload();
-}
-else
-{
-    DirectDownload();
-}
+    static readonly MirrorSettings mirror = new();
+    static readonly ControlSettings control = new();
 
-void DirectDownload()
-{
-    using var client = new FtpClient(ftpsHost, ftpsUser, ftpsPass, ftpsPort);
-
-    client.Config.ValidateAnyCertificate = ftpsValidateAnyCertificate;
-    client.Config.LogToConsole = logToConsole;
-
-    client.AutoConnect();
-    client.DownloadDirectory(mirrorPath, ftpsRoot, FtpFolderSyncMode.Update, FtpLocalExists.Skip);
-    client.Disconnect();
-}
-
-void ProxyDownload()
-{
-    var profile = new FtpProxyProfile()
+    private static void Main(string[] args)
     {
-        ProxyHost = proxyHost,
-        ProxyPort = proxyPort,
-        FtpHost = ftpsHost,
-        FtpPort = ftpsPort,
-        FtpCredentials = new NetworkCredential(ftpsUser, ftpsPass)
-    };
+        IConfiguration config = new ConfigurationBuilder()
+            .SetBasePath(Directory.GetCurrentDirectory())
+            .AddJsonFile("appsettings.json", true, true)
+            //.AddJsonFile(GetLocalFilePath("usersetting.json"), true, true)
+            .Build();
 
-    if (!proxyAnonymous)
-    {
-        profile.ProxyCredentials = new NetworkCredential(proxyUser, proxyPass);
+        if (args.Length == 0 || 
+            args[0].EndsWith("?", StringComparison.Ordinal))
+        {
+            Usage();
+        }
+        else //if (string.IsNullOrEmpty(proxyHost))
+        {
+            Download(args, config);
+        }
+        //else
+        //{
+        //    //ProxyDownload();
+        //}
     }
 
-    using var client = new FtpClientHttp11Proxy(profile);
+    private static void Usage()
+    {
+        //{Environment.ProcessPath}
+        var assembly = Assembly.GetExecutingAssembly().GetName();
+        string usage = $@"{assembly.Name} v{assembly.Version?.ToString(3) ?? "0.1.0"}
 
-    client.Config.ValidateAnyCertificate = ftpsValidateAnyCertificate;
-    client.Config.LogToConsole = logToConsole;
+-?  - this help
+-m  - mirror
+-u  - update
+-r  - by rules
+-l  - by list
 
-    client.AutoConnect(); //TODO
-    client.DownloadDirectory(mirrorPath, ftpsRoot, FtpFolderSyncMode.Update, FtpLocalExists.Skip);
-    client.Disconnect();
+OS: {Environment.OSVersion}
+.NET: {Environment.Version}";
+
+        Console.WriteLine(usage);
+    }
+
+    private static string GetLocalFilePath(string fileName)
+    {
+        var assembly = Assembly.GetEntryAssembly();
+        var assemblyName = assembly?.GetName();
+
+        //string allData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData); // All Users
+        string appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData); // Current User
+        var company = assembly?.GetCustomAttributes<AssemblyCompanyAttribute>().FirstOrDefault()?.Company ?? "Company";
+        var app = assemblyName?.Name ?? Environment.GetCommandLineArgs()[0];
+        //var version = assemblyName?.Version?.ToString() ?? "1.0.0.0";
+
+        return Path.Combine(appData,
+            company,
+            app,
+            //version, 
+            fileName);
+    }
+
+    private static void Download(string[] args, IConfiguration config)
+    {
+        List<FtpResult>? resultList = null;
+
+        using var ftpClient = new FtpClient();
+        config.Bind(nameof(FtpClient), ftpClient);
+
+        var ftpUser = new NetworkCredential();
+        config.Bind(nameof(ftpUser), ftpUser);
+        ftpClient.Credentials = ftpUser;
+
+        if (!ftpClient.Config.ValidateAnyCertificate)
+        {
+            ftpClient.ValidateCertificate += new FtpSslValidation(OnValidateCertificate); //TODO -= ?
+        }
+
+        config.Bind(nameof(MirrorSettings), mirror);
+        config.Bind(nameof(ControlSettings), control);
+
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        var enc = Encoding.GetEncoding(1251);
+
+        try
+        {
+            ftpClient.AutoConnect();
+
+            if (args.Contains("-m"))
+            {
+                //Mirror
+                resultList = ftpClient.DownloadDirectory(mirror.Path, mirror.Root, 
+                    FtpFolderSyncMode.Mirror, FtpLocalExists.Skip, FtpVerify.None);
+            }
+            else if (args.Contains("-u"))
+            {
+                //Update
+                resultList = ftpClient.DownloadDirectory(mirror.Path, mirror.Root, 
+                    FtpFolderSyncMode.Update, FtpLocalExists.Skip, FtpVerify.None);
+            }
+            else if (args.Contains("-r"))
+            {
+                //Update by allowed rules
+                var rules = new List<FtpRule>
+                {
+                    new FtpFolderRegexRule(true, 
+                    new List<string>{ mirror.FolderRegex }, 1)
+                };
+
+                resultList = ftpClient.DownloadDirectory(mirror.Path, mirror.Root, 
+                    FtpFolderSyncMode.Update, FtpLocalExists.Skip, FtpVerify.None, rules);
+            }
+            else if (args.Contains("-l"))
+            {
+                //Download by file list
+                string listFile = Path.Combine(control.Path, mirror.List);
+                string lastFile = Path.Combine(control.Path, control.Last);
+
+                string? lastLine = File.ReadAllLines(lastFile, enc).FirstOrDefault();
+
+                var status = ftpClient.DownloadFile(listFile, mirror.Root + mirror.List);
+
+                if (status != FtpStatus.Success)
+                {
+                    Environment.Exit(1);
+                }
+
+                var lines = File.ReadAllLines(listFile);
+                IEnumerable<string> batch;
+
+                if (lastLine != null && lines.Contains(lastLine))
+                {
+                    if (lastLine == lines.Last())
+                    {
+                        Environment.Exit(1);
+                    }
+
+                    batch = lines.SkipWhile(x => x != lastLine).Skip(1);
+                }
+                else
+                {
+                    batch = lines;
+                }
+
+                resultList = ftpClient.DownloadFiles(mirror.Path, batch);
+
+                if (resultList!.Count > 0)
+                {
+                    lastLine = batch.Last();
+                    File.WriteAllText(lastFile, lastLine + Environment.NewLine + 
+                        "# Первая строка определяет последний скачанный файл.", enc);
+                }
+            }
+        }
+        finally
+        {
+            ftpClient.Disconnect();
+        }
+
+        if (!string.IsNullOrEmpty(control.List) && resultList!.Count > 0)
+        {
+            StringBuilder list = new();
+
+            foreach (var result in resultList)
+            {
+                if (!result.IsFailed && !result.IsSkipped && !result.IsSkippedByRule && 
+                    result.Type == FtpObjectType.File)
+                {
+                    list.AppendLine(result.LocalPath);
+                }
+            }
+
+            if (list.Length > 0)
+            {
+                string path = Path.Combine(control.Path, control.List);
+                File.AppendAllText(path, list.ToString(), enc);
+            }
+        }
+    }
+
+    private static void OnValidateCertificate(BaseFtpClient baseClient, FtpSslValidationEventArgs e)
+    {
+        if (control.SaveCertificate)
+        {
+            string ftpHost = Path.Combine(control.Path, baseClient.Host);
+
+            File.WriteAllText(ftpHost + ".txt", e.Certificate.ToString());
+            File.WriteAllBytes(ftpHost + ".cer", e.Certificate.Export(X509ContentType.Cert));
+        }
+
+        //TODO check certificate
+        if (e.PolicyErrors != SslPolicyErrors.None)
+        {
+            e.Accept = false;
+            return;
+        }
+
+        //valid
+        e.Accept = true;
+    }
 }
