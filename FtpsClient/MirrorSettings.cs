@@ -19,7 +19,7 @@
 
 namespace FtpsClient;
 
-public class MirrorSettings
+public sealed class MirrorSettings
 {
     public string Root { get; set; } = "/";
     public string Path { get; set; } = "mirror";

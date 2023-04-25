@@ -19,7 +19,7 @@
 
 namespace FtpsClient;
 
-public class ControlSettings
+public sealed class ControlSettings
 {
     public bool SaveCertificate { get; set; } = false;
     public string Path { get; set; } = ".";

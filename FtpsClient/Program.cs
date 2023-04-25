@@ -33,15 +33,15 @@ namespace FtpsClient;
 
 internal class Program
 {
-    static readonly MirrorSettings mirror = new();
-    static readonly ControlSettings control = new();
+    private static readonly MirrorSettings mirror = new();
+    private static readonly ControlSettings control = new();
 
     private static void Main(string[] args)
     {
         IConfiguration config = new ConfigurationBuilder()
             .SetBasePath(Directory.GetCurrentDirectory())
-            .AddJsonFile("appsettings.json", true, true)
-            //.AddJsonFile(GetLocalFilePath("usersetting.json"), true, true)
+            .AddJsonFile("appsettings.json", false, false)
+            .AddJsonFile(UserSettingsManager.FilePath(), true, false)
             .Build();
 
         if (args.Length == 0 || 
@@ -62,8 +62,9 @@ internal class Program
     private static void Usage()
     {
         //{Environment.ProcessPath}
-        var assembly = Assembly.GetExecutingAssembly().GetName();
-        string usage = $@"{assembly.Name} v{assembly.Version?.ToString(3) ?? "0.1.0"}
+        var assembly = Assembly.GetExecutingAssembly();
+        string usage = $@"{assembly.GetName().Name} v{assembly.GetName().Version?.ToString() ?? "?"}
+{assembly.GetCustomAttributes<AssemblyDescriptionAttribute>().FirstOrDefault()?.Description}
 
 -?  - this help
 -m  - mirror
@@ -72,27 +73,11 @@ internal class Program
 -l  - by list
 
 OS: {Environment.OSVersion}
-.NET: {Environment.Version}";
+.NET: {Environment.Version}
+App Settings: {Path.Combine(Directory.GetCurrentDirectory(), "appsettings.json")}
+User Settings: {UserSettingsManager.FilePath()}";
 
         Console.WriteLine(usage);
-    }
-
-    private static string GetLocalFilePath(string fileName)
-    {
-        var assembly = Assembly.GetEntryAssembly();
-        var assemblyName = assembly?.GetName();
-
-        //string allData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData); // All Users
-        string appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData); // Current User
-        var company = assembly?.GetCustomAttributes<AssemblyCompanyAttribute>().FirstOrDefault()?.Company ?? "Company";
-        var app = assemblyName?.Name ?? Environment.GetCommandLineArgs()[0];
-        //var version = assemblyName?.Version?.ToString() ?? "1.0.0.0";
-
-        return Path.Combine(appData,
-            company,
-            app,
-            //version, 
-            fileName);
     }
 
     private static void Download(string[] args, IConfiguration config)
@@ -114,12 +99,16 @@ OS: {Environment.OSVersion}
         config.Bind(nameof(MirrorSettings), mirror);
         config.Bind(nameof(ControlSettings), control);
 
+        //mirror = config.GetSection(nameof(MirrorSettings)).Get<MirrorSettings>();
+        //control = config.GetSection(nameof(ControlSettings)).Get<ControlSettings>();
+
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
         var enc = Encoding.GetEncoding(1251);
 
         try
         {
             ftpClient.AutoConnect();
+            ftpClient.SetWorkingDirectory(mirror.Root);
 
             if (args.Contains("-m"))
             {
@@ -148,12 +137,21 @@ OS: {Environment.OSVersion}
             else if (args.Contains("-l"))
             {
                 //Download by file list
-                string listFile = Path.Combine(control.Path, mirror.List);
-                string lastFile = Path.Combine(control.Path, control.Last);
+                string listFile = Path.Combine(control.Path, mirror.List); // "UpdateHistory.txt"
+                string lastFile = Path.Combine(control.Path, control.Last); // "last.txt"
 
-                string? lastLine = File.ReadAllLines(lastFile, enc).FirstOrDefault();
+                string? lastLine = File.Exists(lastFile)
+                    ? File.ReadAllLines(lastFile, enc).FirstOrDefault()
+                    : null;
 
-                var status = ftpClient.DownloadFile(listFile, mirror.Root + mirror.List);
+                var check = ftpClient.CompareFile(listFile, mirror.List, FtpCompareOption.Size);
+
+                if (check == FtpCompareResult.Equal) 
+                {
+                    Environment.Exit(0);
+                }
+
+                var status = ftpClient.DownloadFile(listFile, mirror.List, FtpLocalExists.Resume);
 
                 if (status != FtpStatus.Success)
                 {

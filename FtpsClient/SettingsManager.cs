@@ -19,7 +19,6 @@
 
 //TODO
 
-using System.Reflection;
 using System.Text.Json;
 
 namespace FtpsClient;
@@ -35,32 +34,9 @@ namespace FtpsClient;
 /// <typeparam name="T"></typeparam>
 public abstract class SettingsManager<T> where T : SettingsManager<T>, new()
 {
-    private static readonly string _filePath = GetLocalFilePath($"{typeof(T).Name}.json");
+    private static readonly string _filePath = UserSettingsManager.FilePath($"{typeof(T).Name}.json");
 
     public static T Instance { get; private set; } = new T();
-
-    /// <summary>
-    /// C:\Users\[username]\AppData\Local\[company]\[appfile]\[1.0.0.0]\[T.json]
-    /// </summary>
-    /// <param name="fileName"></param>
-    /// <returns></returns>
-    private static string GetLocalFilePath(string fileName)
-    {
-        var assembly = Assembly.GetEntryAssembly();
-        var assemblyName = assembly?.GetName();
-
-        //string allData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData); // All Users
-        string appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData); // Current User
-        var company = assembly?.GetCustomAttributes<AssemblyCompanyAttribute>().FirstOrDefault()?.Company ?? "Company";
-        var app = assemblyName?.Name ?? Environment.GetCommandLineArgs()[0];
-        //var version = assemblyName?.Version?.ToString() ?? "1.0.0.0";
-
-        return Path.Combine(appData, 
-            company, 
-            app, 
-            //version, 
-            fileName);
-    }
 
     public static void Load()
     {
