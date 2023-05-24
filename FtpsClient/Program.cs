@@ -36,7 +36,9 @@ internal class Program
     private static readonly MirrorSettings mirror = new();
     private static readonly ControlSettings control = new();
 
-    private static void Main(string[] args)
+    private static Encoding _enc;
+
+    private static int Main(string[] args)
     {
         IConfiguration config = new ConfigurationBuilder()
             .SetBasePath(Directory.GetCurrentDirectory())
@@ -44,19 +46,40 @@ internal class Program
             .AddJsonFile(UserSettingsManager.FilePath(), true, false)
             .Build();
 
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        _enc = Encoding.GetEncoding(1251);
+
         if (args.Length == 0 || 
             args[0].EndsWith("?", StringComparison.Ordinal))
         {
             Usage();
+            return 1;
         }
         else //if (string.IsNullOrEmpty(proxyHost))
         {
-            Download(args, config);
+            try
+            {
+                Download(args, config);
+            }
+            catch (Exception ex)
+            {
+                string text = DateTime.Now.ToString("yyyy-MM-dd HH:mm ") +
+                    ex.Message + Environment.NewLine;
+                
+                if (ex.InnerException != null)
+                {
+                    text += ex.InnerException.Message + Environment.NewLine;
+                }
+
+                File.AppendAllText("FtpsClient.log", text, _enc);
+            }
         }
         //else
         //{
         //    //ProxyDownload();
         //}
+
+        return 0;
     }
 
     private static void Usage()
@@ -102,9 +125,6 @@ User Settings: {UserSettingsManager.FilePath()}";
         //mirror = config.GetSection(nameof(MirrorSettings)).Get<MirrorSettings>();
         //control = config.GetSection(nameof(ControlSettings)).Get<ControlSettings>();
 
-        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-        var enc = Encoding.GetEncoding(1251);
-
         try
         {
             ftpClient.AutoConnect();
@@ -141,7 +161,7 @@ User Settings: {UserSettingsManager.FilePath()}";
                 string lastFile = Path.Combine(control.Path, control.Last); // "last.txt"
 
                 string? lastLine = File.Exists(lastFile)
-                    ? File.ReadAllLines(lastFile, enc).FirstOrDefault()
+                    ? File.ReadAllLines(lastFile, _enc).FirstOrDefault()
                     : null;
 
                 var check = ftpClient.CompareFile(listFile, mirror.List, FtpCompareOption.Size);
@@ -165,7 +185,7 @@ User Settings: {UserSettingsManager.FilePath()}";
                 {
                     if (lastLine == lines.Last())
                     {
-                        Environment.Exit(1);
+                        Environment.Exit(0);
                     }
 
                     batch = lines.SkipWhile(x => x != lastLine).Skip(1);
@@ -181,7 +201,7 @@ User Settings: {UserSettingsManager.FilePath()}";
                 {
                     lastLine = batch.Last();
                     File.WriteAllText(lastFile, lastLine + Environment.NewLine + 
-                        "# Первая строка определяет последний скачанный файл.", enc);
+                        "# Первая строка определяет последний скачанный файл.", _enc);
                 }
             }
         }
@@ -206,7 +226,7 @@ User Settings: {UserSettingsManager.FilePath()}";
             if (list.Length > 0)
             {
                 string path = Path.Combine(control.Path, control.List);
-                File.AppendAllText(path, list.ToString(), enc);
+                File.AppendAllText(path, list.ToString(), _enc);
             }
         }
     }

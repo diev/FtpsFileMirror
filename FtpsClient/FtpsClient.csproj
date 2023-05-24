@@ -5,7 +5,7 @@
     <TargetFramework>net7.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <Version>1.1.0</Version>
+    <Version>1.3.0</Version>
     <Description>It downloads files from a remote FTPS server to a local mirror.</Description>
     <Copyright>Copyright 2023 Dmitrii Evdokimov</Copyright>
     <PackageProjectUrl>https://github.com/diev/FtpsFileMirror/</PackageProjectUrl>

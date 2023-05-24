@@ -64,7 +64,7 @@ public static class UserSettingsManager
         sb.Append(fileName);
 
         //return Path.Combine(appData,
-        //    //company,
+        //    company,
         //    app,
         //    //version, 
         //    fileName);
