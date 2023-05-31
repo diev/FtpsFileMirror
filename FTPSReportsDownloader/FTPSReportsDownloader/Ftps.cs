@@ -1,81 +1,88 @@
-﻿using System;
-using System.Collections.Generic;
+﻿#region License
+//------------------------------------------------------------------------------
+// Copyright (c) Dmitrii Evdokimov
+// Open source software https://github.com/diev/
+// 
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//------------------------------------------------------------------------------
+#endregion
+
+using System;
 using System.IO;
-using System.Linq;
+
+using static FTPSReportsDownload.Helper;
 
 namespace FTPSReportsDownload
 {
     public static class Ftps
     {
-        public static void Sync()
+        private static readonly string _updateHistory = "/UpdateHistory.txt";
+
+        public static int Sync()
         {
-            var server = Helper.GetConfigValue("Server");
-            var userName = Helper.GetConfigValue("UserName");
-            var password = Helper.GetConfigValue("Password");
-            var downloadDirectory = Helper.GetConfigValue("DownloadDirectory");
-
-            Helper.DownloadFile(server, userName, password, "/UpdateHistory.txt", downloadDirectory);
-
-            var updateHistory = File.ReadAllLines(downloadDirectory + @"\UpdateHistory.txt");
-            var syncFlag = false;
-            var lastSyncFile = "";
-            try
+            var downloadDirectory = GetConfigValue("DownloadDirectory");
+            var historyFile = GetConfigValue("DownloadHistory", false)
+                ?? Path.Combine(downloadDirectory, Path.GetFileName(_updateHistory));
+            
+            if (!int.TryParse(GetConfigValue("DownloadDays", false), out int daysBefore))
             {
-                lastSyncFile = File.ReadAllText(downloadDirectory + @"\lastSync.file");
-            }
-            catch
-            {
-                Helper.Log($@"Ошибка: Файл {downloadDirectory}\lastSync.file не был найден.");
-                Helper.Log("Подсказка: lastSync.file - файл создается после успешного прохождения процесса синхронизации.");
+                daysBefore = 14;
             }
 
-            var dateFrom = DateTime.Now.AddDays(-30); // Скачать все файлы за последние 30 дней с ftps, если файл lastSync.file не был найден
-            var startSyncFromList = new Dictionary<string, string>();
-            startSyncFromList.Add(dateFrom.ToString("/yyyyMM") + dateFrom.ToString("dd"), "файлов за последние 30 дней.");
-            startSyncFromList.Add(dateFrom.ToString("/yyyyMM") + dateFrom.ToString("dd")[0], "файлов за последние 3* дней.");
-            startSyncFromList.Add(dateFrom.ToString("/yyyyMM"), "файлов с предыдущего месяца.");
-            startSyncFromList.Add(dateFrom.ToString("/yyyy"), "файлов за год.");
-            startSyncFromList.Add("SyncAll", "всех файлов.");
+            int compare = CompareSizeOfFile(_updateHistory, historyFile);
+            int counter = 0;
 
-            foreach (var startSyncFrom in startSyncFromList)
+            if (compare == 0)
             {
-                if (string.IsNullOrEmpty(lastSyncFile))
+                Log("Нет обновлений.");
+                return 0;
+            }
+
+            if (compare > 0)
+            {
+                var list = DownloadHistory(_updateHistory, historyFile);
+                Log($"Есть обновления ({list.Length}).");
+
+                foreach (var file in list)
                 {
-                    Helper.Log("Начало процесса синхронизации " + startSyncFrom.Value);
-                }
-
-                if (startSyncFrom.Key == "SyncAll") syncFlag = true;
-
-                foreach (var file in updateHistory)
-                {
-                    if (string.IsNullOrEmpty(lastSyncFile) && file.Contains(startSyncFrom.Key))
+                    if (DownloadFile(file))
                     {
-                        syncFlag = true;
-                    }
-
-                    if (syncFlag)
-                    {
-                        Helper.DownloadFile(server, userName, password, file, downloadDirectory);
-                    }
-
-                    if (syncFlag == false && (string.IsNullOrEmpty(lastSyncFile) == false && file == lastSyncFile))
-                    {
-                        syncFlag = true;
+                        counter++;
                     }
                 }
-
-                if (syncFlag) break;
             }
-
-            try
+            else
             {
-                File.WriteAllText(downloadDirectory + @"\lastSync.file", updateHistory.Last());
+                DownloadFile(_updateHistory, historyFile);
+                var list = File.ReadAllLines(historyFile);
+                Log($"Перезагрузка за последние {daysBefore} дней.");
+                var dateFrom = DateTime.Now.AddDays(-daysBefore).ToString("yyyyMMdd");
+
+                foreach (var file in list)
+                {
+                    // /EQ/20230526/PC01101_EQMLIST_001_260523_025153489.xml.p7s.zip.p7e
+                    if (file[3] == '/' && string.Compare(file, 4, dateFrom, 0, 8) > 0)
+                    {
+                        if (DownloadFile(file))
+                        {
+                            counter++;
+                        }
+                    }
+                }
             }
-            catch (Exception e)
-            {
-                Helper.Log($@"Ошибка: Файл {downloadDirectory}\lastSync.file НЕ был сохранен.");
-                Helper.Log("Детали ошибки: " + e.Message + "\n");
-            }
+
+            Log($"Загружено {counter}.");
+            return 0;
         }
     }
 }
