@@ -18,11 +18,14 @@
 #endregion
 
 using System;
+using System.IO;
+using System.Net;
 
 using Lib;
 
+using static Lib.Config;
 
-namespace FTPSReportsDownload
+namespace FTPSReportsDownloader
 {
     class Program
     {
@@ -30,15 +33,33 @@ namespace FTPSReportsDownload
         {
             Console.WriteLine(App.Version);
 
-            if (args.Length > 0 ) // Usage
+            if (args.Length > 0) // Usage
             {
                 Console.WriteLine(App.Description);
                 Console.WriteLine("Set all appSettings in the '.config' file.");
                 return 1;
             }
 
-            // Just work
-            return Ftps.Sync();
+            try
+            {
+                Logger.Log = GetValue("DownloadLog", DateTime.Now);
+                Directory.CreateDirectory(Path.GetDirectoryName(Logger.Log));
+
+                Ftps.Server = "ftp://" + GetValue("Server");
+                Ftps.User = new NetworkCredential(GetValue("UserName"), GetValue("Password"));
+                Ftps.DownloadDirectory = GetValue("DownloadDirectory");
+                Ftps.DownloadDays = int.Parse(GetValue("DownloadDays"));
+                Directory.CreateDirectory(Ftps.DownloadDirectory);
+
+                ServicePointManager.ServerCertificateValidationCallback = delegate { return true; };
+
+                return Ftps.Sync();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.ToString());
+                return 3;
+            }
         }
     }
 }

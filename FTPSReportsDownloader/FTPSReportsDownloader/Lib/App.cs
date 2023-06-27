@@ -1,6 +1,6 @@
 ﻿#region License
 /*
-Copyright (c) 2022 Dmitrii Evdokimov
+Copyright (c) 2022-2023 Dmitrii Evdokimov
 Source https://github.com/diev/
 
    Licensed under the Apache License, Version 2.0 (the "License");
@@ -27,41 +27,6 @@ namespace Lib
     /// </summary>
     public static class App
     {
-        static App()
-        {
-            Exe = Assembly.GetCallingAssembly().Location;
-            Dir = AppDomain.CurrentDomain.BaseDirectory;
-            Assembly assembly = Assembly.GetCallingAssembly();
-            AssemblyName assemblyName = assembly.GetName();
-            //Name = Environment.GetCommandLineArgs()[0] + ".exe"
-            Name = assemblyName.Name;
-
-            // Major.Minor.Build.Revision
-            Ver = assemblyName.Version;
-            if (Ver.Revision > 0)
-            {
-                Build = Ver.Revision.ToString();
-                Version = string.Format("{0} v{1} build {2}", Name, Ver.ToString(3), Build);
-            }
-            else
-            {
-                Build = string.Empty;
-                Version = string.Format("{0} v{1}", Name, Ver.ToString(3));
-            }
-
-            AssemblyDescriptionAttribute descriptionAttribute = 
-                Attribute.GetCustomAttribute(assembly, typeof(AssemblyDescriptionAttribute)) as AssemblyDescriptionAttribute;
-            Description = descriptionAttribute.Description;
-
-            AssemblyCompanyAttribute companyAttribute = 
-                Attribute.GetCustomAttribute(assembly, typeof(AssemblyCompanyAttribute)) as AssemblyCompanyAttribute;
-            Company = companyAttribute.Company;
-
-            AssemblyCopyrightAttribute copyrightAttribute = 
-                Attribute.GetCustomAttribute(assembly, typeof(AssemblyCopyrightAttribute)) as AssemblyCopyrightAttribute;
-            Copyright = copyrightAttribute.Copyright;
-        }
-
         /// <summary>
         /// Файл приложения
         /// </summary>
@@ -106,5 +71,40 @@ namespace Lib
         /// Авторские права на приложение
         /// </summary>
         public static string Copyright { get; }
+
+        static App()
+        {
+            Exe = Assembly.GetCallingAssembly().Location;
+            Dir = AppDomain.CurrentDomain.BaseDirectory;
+            Assembly assembly = Assembly.GetCallingAssembly();
+            AssemblyName assemblyName = assembly.GetName();
+            //Name = Environment.GetCommandLineArgs()[0] + ".exe"
+            Name = assemblyName.Name;
+
+            // Major.Minor.Build.Revision
+            Ver = assemblyName.Version;
+            if (Ver.Revision > 0)
+            {
+                Build = Ver.Revision.ToString();
+                Version = string.Format("{0} v{1} build {2}", Name, Ver.ToString(3), Build);
+            }
+            else
+            {
+                Build = string.Empty;
+                Version = string.Format("{0} v{1}", Name, Ver.ToString(3));
+            }
+
+            AssemblyDescriptionAttribute descriptionAttribute =
+                Attribute.GetCustomAttribute(assembly, typeof(AssemblyDescriptionAttribute)) as AssemblyDescriptionAttribute;
+            Description = descriptionAttribute.Description;
+
+            AssemblyCompanyAttribute companyAttribute =
+                Attribute.GetCustomAttribute(assembly, typeof(AssemblyCompanyAttribute)) as AssemblyCompanyAttribute;
+            Company = companyAttribute.Company;
+
+            AssemblyCopyrightAttribute copyrightAttribute =
+                Attribute.GetCustomAttribute(assembly, typeof(AssemblyCopyrightAttribute)) as AssemblyCopyrightAttribute;
+            Copyright = copyrightAttribute.Copyright;
+        }
     }
 }

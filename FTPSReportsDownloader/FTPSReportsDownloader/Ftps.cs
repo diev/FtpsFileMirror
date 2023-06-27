@@ -18,40 +18,65 @@
 #endregion
 
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Net;
 
-using static FTPSReportsDownload.Helper;
+using static Lib.Config;
+using static Lib.Logger;
 
-namespace FTPSReportsDownload
+namespace FTPSReportsDownloader
 {
     public static class Ftps
     {
-        private static readonly string _updateHistory = "/UpdateHistory.txt";
+        /// <summary>
+        /// Uri сервера.
+        /// </summary>
+        public static string Server { get; set; }
 
+        /// <summary>
+        /// Логин и пароль доступа к серверу.
+        /// </summary>
+        public static NetworkCredential User { get; set; }
+
+        /// <summary>
+        /// Папка для загрузки файлов на локальный диск.
+        /// </summary>
+        public static string DownloadDirectory { get; set; }
+
+        /// <summary>
+        /// Файл с историей выкладок файлов на сервере.
+        /// </summary>
+        public static string UpdateHistory { get; set; } = "/UpdateHistory.txt";
+
+        /// <summary>
+        /// За сколько дней скачивать, если файл истории выкладок отсутствует.
+        /// </summary>
+        public static int DownloadDays { get; set; } = 14;
+
+        /// <summary>
+        /// Задача синхронизации файлов на сервере и локальном диске.
+        /// </summary>
+        /// <returns>Код возврата для программы.</returns>
         public static int Sync()
         {
-            var downloadDirectory = GetConfigValue("DownloadDirectory");
-            var historyFile = GetConfigValue("DownloadHistory", false)
-                ?? Path.Combine(downloadDirectory, Path.GetFileName(_updateHistory));
-            
-            if (!int.TryParse(GetConfigValue("DownloadDays", false), out int daysBefore))
-            {
-                daysBefore = 14;
-            }
+            var downloadDirectory = GetValue("DownloadDirectory");
+            var historyFile = GetValue("DownloadHistory")
+                ?? Path.Combine(downloadDirectory, Path.GetFileName(UpdateHistory));
 
-            int compare = CompareSizeOfFile(_updateHistory, historyFile);
+            int compare = CompareSizeOfFile(UpdateHistory, historyFile);
             int counter = 0;
 
             if (compare == 0)
             {
-                Log("Нет обновлений.");
+                // TWriteLine("Нет обновлений.");
                 return 0;
             }
 
             if (compare > 0)
             {
-                var list = DownloadHistory(_updateHistory, historyFile);
-                Log($"Есть обновления ({list.Length}).");
+                var list = DownloadHistory(UpdateHistory, historyFile);
+                TWriteLine($"Есть обновления ({list.Length}):");
 
                 foreach (var file in list)
                 {
@@ -61,12 +86,12 @@ namespace FTPSReportsDownload
                     }
                 }
             }
-            else
+            else // compare < 0
             {
-                DownloadFile(_updateHistory, historyFile);
+                DownloadFile(UpdateHistory, historyFile);
                 var list = File.ReadAllLines(historyFile);
-                Log($"Перезагрузка за последние {daysBefore} дней.");
-                var dateFrom = DateTime.Now.AddDays(-daysBefore).ToString("yyyyMMdd");
+                TWriteLine($"Перезагрузка за последние {DownloadDays} дней.");
+                var dateFrom = DateTime.Now.AddDays(-DownloadDays).ToString("yyyyMMdd");
 
                 foreach (var file in list)
                 {
@@ -81,8 +106,191 @@ namespace FTPSReportsDownload
                 }
             }
 
-            Log($"Загружено {counter}.");
+            // TWriteLine($"Загружено {counter}.");
             return 0;
+        }
+
+        /// <summary>
+        /// Получить бинарное содержимое указанного файла.
+        /// </summary>
+        /// <param name="serverPath">Путь к файлу на сервере.</param>
+        /// <param name="method">Метод получения (FTP, загрузить файл).</param>
+        /// <param name="contentOffset">Место смещения в файле (не 0 при докачивании).</param>
+        /// <returns>Возвращает ответ FTP-сервера.</returns>
+        public static FtpWebResponse GetResponse(string serverPath, string method = WebRequestMethods.Ftp.DownloadFile, long contentOffset = 0)
+        {
+            var path = serverPath.Replace(@"\", "/");
+            var request = (FtpWebRequest)WebRequest.Create(Server + path);
+            request.Proxy = null; // Игнорировать настройки прокси (TODO: сделать поддержку прокси).
+            request.Credentials = User;
+            request.Method = method;
+            request.EnableSsl = true;
+            request.UseBinary = true;
+            request.ContentLength = contentOffset;
+
+            string log = $"< {method} {serverPath}";
+
+            if (contentOffset > 0)
+            {
+                log += $" {contentOffset}";
+            }
+
+            TWriteLine(log);
+            var response = (FtpWebResponse)request.GetResponse();
+
+            if (response.StatusCode == FtpStatusCode.DataAlreadyOpen || response.StatusCode == FtpStatusCode.OpeningData)
+            {
+                //skip information
+            }
+            else
+            {
+                TWrite($"> {response.StatusDescription}"); // StatusDescription tails an extra NewLine
+            }
+
+            return response;
+        }
+
+        /// <summary>
+        /// Скачать файл истории выкладок на сервере.
+        /// </summary>
+        /// <param name="serverPath">Путь к файлу истории на сервере.</param>
+        /// <param name="localPath">Путь к файлу истории на локальном диске.</param>
+        /// <returns>Массив строк с новыми файлами по сравнению с локальной копией файла истории.</returns>
+        public static string[] DownloadHistory(string serverPath, string localPath)
+        {
+            try
+            {
+                using (var memoryStream = new MemoryStream())
+                {
+                    FileMode mode = File.Exists(localPath) ? FileMode.Append : FileMode.Create;
+                    long resumePosition;
+
+                    using (var writeStream = new FileStream(localPath, mode))
+                    {
+                        resumePosition = writeStream.Position;
+
+                        using (var responseStream = GetResponse(serverPath, 
+                            WebRequestMethods.Ftp.DownloadFile, resumePosition).GetResponseStream())
+                        {
+                            responseStream.CopyToAsync(memoryStream).Wait();
+                        }
+
+                        memoryStream.Position = resumePosition;
+                        memoryStream.CopyToAsync(writeStream).Wait();
+                    }
+
+                    memoryStream.Position = resumePosition;
+                    var lines = new List<string>();
+
+                    using (var reader = new StreamReader(memoryStream)) //, Encoding.ASCII))
+                    {
+                        string line;
+                        while ((line = reader.ReadLine()) != null)
+                        {
+                            lines.Add(line);
+                        }
+                    }
+
+                    return lines.ToArray();
+                }
+            }
+            catch (WebException e)
+            {
+                TWriteLine("Download file -> Error: " + e.Message);
+                return new string[] { };
+            }
+        }
+
+        /// <summary>
+        /// Скачать файл с сервера.
+        /// </summary>
+        /// <param name="serverPath">Путь к файлу на сервере.</param>
+        /// <param name="localPath">Путь к файлу на локальном диске.</param>
+        /// <param name="resume">Использовать ли докачку.</param>
+        /// <returns>Выполнение завершено успешно (true/false).</returns>
+        public static bool DownloadFile(string serverPath, string localPath = null, bool resume = false)
+        {
+            try
+            {
+                var path = localPath ?? Path.Combine(DownloadDirectory, Path.GetFileName(serverPath));
+                FileMode mode = (File.Exists(path) && resume) ? FileMode.Append : FileMode.Create;
+
+                using (var writeStream = new FileStream(path, mode))
+                {
+                    using (var response = GetResponse(serverPath, WebRequestMethods.Ftp.DownloadFile, writeStream.Position))
+                    using (var responseStream = response.GetResponseStream())
+                    {
+                        responseStream.CopyTo(writeStream);
+                    }
+                }
+
+                return true;
+            }
+            catch (WebException e)
+            {
+                var x = (FtpWebResponse)e.Response;
+
+                if (x.StatusCode == FtpStatusCode.ActionNotTakenFileUnavailable)
+                {
+                    TWriteLine("Файл был удален в связи с истечением срока давности.");
+                    return true; // it's normal to skip it
+                }
+
+                TWriteLine("Download file -> Error: " + e.Message);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Сравнить размер файла на сервере и на диске.
+        /// </summary>
+        /// <param name="serverPath">Путь к файлу на сервере.</param>
+        /// <param name="localPath">Путь к файлу на локальном диске.</param>
+        /// <returns>0 - скачивать не надо (или нет связи);
+        /// 1 - надо докачать (размер вырос);
+        /// -1 - ошибка (надо скачать заново).</returns>
+        public static int CompareSizeOfFile(string serverPath, string localPath = null)
+        {
+            try
+            {
+                var response = GetResponse(serverPath, WebRequestMethods.Ftp.GetFileSize);
+                var serverSize = response.ContentLength;
+                response.Close();
+
+                var path = localPath ?? Path.Combine(DownloadDirectory, Path.GetFileName(serverPath));
+
+                if (!File.Exists(path))
+                {
+                    return -1;
+                }
+
+                var localSize = new FileInfo(path).Length;
+
+                return (serverSize == localSize)
+                    ? 0
+                    : (serverSize > localSize)
+                        ? 1
+                        : -1;
+            }
+            catch (WebException e)
+            {
+                var x = (FtpWebResponse)e.Response;
+
+                if (x == null)
+                {
+                    TWriteLine("Ответ от сервера не получен.");
+                    return 0;
+                }
+
+                if (x.StatusCode == FtpStatusCode.ActionNotTakenFileUnavailable)
+                {
+                    TWriteLine("Файл был удален в связи с истечением срока давности.");
+                    return 0;
+                }
+
+                TWriteLine("Size of file -> Error: " + e.Message);
+                return -1;
+            }
         }
     }
 }

@@ -49,9 +49,10 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="App.cs" />
+    <Compile Include="Lib\Config.cs" />
     <Compile Include="Ftps.cs" />
-    <Compile Include="Helper.cs" />
+    <Compile Include="Lib\App.cs" />
+    <Compile Include="Lib\Logger.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
