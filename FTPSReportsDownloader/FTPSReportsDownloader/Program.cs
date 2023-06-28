@@ -49,6 +49,7 @@ namespace FTPSReportsDownloader
                 Ftps.User = new NetworkCredential(GetValue("UserName"), GetValue("Password"));
                 Ftps.DownloadDirectory = GetValue("DownloadDirectory");
                 Ftps.DownloadDays = int.Parse(GetValue("DownloadDays"));
+                Ftps.Verbose = bool.Parse(GetValue("Verbose"));
                 Directory.CreateDirectory(Ftps.DownloadDirectory);
 
                 ServicePointManager.ServerCertificateValidationCallback = delegate { return true; };

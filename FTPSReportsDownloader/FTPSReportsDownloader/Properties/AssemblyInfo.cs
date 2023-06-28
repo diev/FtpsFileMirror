@@ -5,7 +5,7 @@ using System.Runtime.InteropServices;
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
 [assembly: AssemblyTitle("FTPSReportsDownloader")]
-[assembly: AssemblyDescription("Downloads all files from a remote FTPS server (i.e. MOEX) to a local path.")]
+[assembly: AssemblyDescription("Downloads all reports from a remote MOEX FTPS server to a local path.")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("diev")]
 [assembly: AssemblyProduct("FTPSReportsDownloader")]
@@ -31,5 +31,5 @@ using System.Runtime.InteropServices;
 // You can specify all the values or you can default the Build and Revision Numbers 
 // by using the '*' as shown below:
 // [assembly: AssemblyVersion("1.0.*")]
-[assembly: AssemblyVersion("2.1.0.0")]
-[assembly: AssemblyFileVersion("2.1.0.0")]
+[assembly: AssemblyVersion("2.2.0.0")]
+[assembly: AssemblyFileVersion("2.2.0.0")]

@@ -7,7 +7,10 @@ Downloads all files from a remote FTPS server (i.e. MOEX) to a local mirror.
 - .NET 7.0
 - FluentFTP
 
-See also [FTPSReportsDownloader] for just a good worker.
+# Latest releases
+
+FtpsFileMirror currently downgraded to old [FTPSReportsDownloader]
+with requirements
 
 - .Net Framework 4.8
 

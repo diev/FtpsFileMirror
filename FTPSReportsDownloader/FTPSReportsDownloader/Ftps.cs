@@ -55,6 +55,11 @@ namespace FTPSReportsDownloader
         public static int DownloadDays { get; set; } = 14;
 
         /// <summary>
+        /// Вести подробный лог (true/false)
+        /// </summary>
+        public static bool Verbose { get; set; } = false;
+
+        /// <summary>
         /// Задача синхронизации файлов на сервере и локальном диске.
         /// </summary>
         /// <returns>Код возврата для программы.</returns>
@@ -69,14 +74,22 @@ namespace FTPSReportsDownloader
 
             if (compare == 0)
             {
-                // TWriteLine("Нет обновлений.");
+                if (Verbose)
+                {
+                    TWriteLine("Нет обновлений.");
+                }
+
                 return 0;
             }
 
             if (compare > 0)
             {
                 var list = DownloadHistory(UpdateHistory, historyFile);
-                TWriteLine($"Есть обновления ({list.Length}):");
+
+                if (Verbose)
+                {
+                    TWriteLine($"Есть обновления ({list.Length}):");
+                }
 
                 foreach (var file in list)
                 {
@@ -106,7 +119,11 @@ namespace FTPSReportsDownloader
                 }
             }
 
-            // TWriteLine($"Загружено {counter}.");
+            if (Verbose)
+            {
+                TWriteLine($"Загружено {counter}.");
+            }
+
             return 0;
         }
 
@@ -128,21 +145,13 @@ namespace FTPSReportsDownloader
             request.UseBinary = true;
             request.ContentLength = contentOffset;
 
-            string log = $"< {method} {serverPath}";
+            TWriteLine(contentOffset > 0
+                ? $"< {method} {serverPath} {contentOffset}"
+                : $"< {method} {serverPath}");
 
-            if (contentOffset > 0)
-            {
-                log += $" {contentOffset}";
-            }
-
-            TWriteLine(log);
             var response = (FtpWebResponse)request.GetResponse();
 
-            if (response.StatusCode == FtpStatusCode.DataAlreadyOpen || response.StatusCode == FtpStatusCode.OpeningData)
-            {
-                //skip information
-            }
-            else
+            if (response.StatusCode != FtpStatusCode.DataAlreadyOpen && response.StatusCode != FtpStatusCode.OpeningData)
             {
                 TWrite($"> {response.StatusDescription}"); // StatusDescription tails an extra NewLine
             }
