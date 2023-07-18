@@ -1,5 +1,4 @@
-﻿using System;
-#region License
+﻿#region License
 //------------------------------------------------------------------------------
 // Copyright (c) Dmitrii Evdokimov
 // Open source software https://github.com/diev/
@@ -18,6 +17,7 @@
 //------------------------------------------------------------------------------
 #endregion
 
+using System;
 using System.IO;
 using System.Text;
 

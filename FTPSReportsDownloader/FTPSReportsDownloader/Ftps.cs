@@ -70,7 +70,6 @@ namespace FTPSReportsDownloader
                 ?? Path.Combine(downloadDirectory, Path.GetFileName(UpdateHistory));
 
             int compare = CompareSizeOfFile(UpdateHistory, historyFile);
-            int counter = 0;
 
             if (compare == 0)
             {
@@ -82,16 +81,31 @@ namespace FTPSReportsDownloader
                 return 0;
             }
 
+            string[] list;
+            int counter = 0;
+            var dateFrom = DateTime.Now.AddDays(-DownloadDays).ToString("yyyyMMdd");
+
             if (compare > 0)
             {
-                var list = DownloadHistory(UpdateHistory, historyFile);
+                list = DownloadHistory(UpdateHistory, historyFile);
 
                 if (Verbose)
                 {
                     TWriteLine($"Есть обновления ({list.Length}):");
                 }
+            }
+            else // compare < 0
+            {
+                DownloadFile(UpdateHistory, historyFile);
+                list = File.ReadAllLines(historyFile);
+                TWriteLine($"Перезагрузка за последние {DownloadDays} дней.");
+            }
 
-                foreach (var file in list)
+            foreach (var file in list)
+            {
+                // "/EQ/20230526/PC01101_EQMLIST_001_260523_025153489.xml.p7s.zip.p7e"
+                // Допстраховка от сбоев, когда возникает желание перезагрузить весь список от начала...
+                if (file[3] == '/' && string.Compare(file, 4, dateFrom, 0, 8) > 0)
                 {
                     if (DownloadFile(file))
                     {
@@ -99,29 +113,10 @@ namespace FTPSReportsDownloader
                     }
                 }
             }
-            else // compare < 0
-            {
-                DownloadFile(UpdateHistory, historyFile);
-                var list = File.ReadAllLines(historyFile);
-                TWriteLine($"Перезагрузка за последние {DownloadDays} дней.");
-                var dateFrom = DateTime.Now.AddDays(-DownloadDays).ToString("yyyyMMdd");
 
-                foreach (var file in list)
-                {
-                    // /EQ/20230526/PC01101_EQMLIST_001_260523_025153489.xml.p7s.zip.p7e
-                    if (file[3] == '/' && string.Compare(file, 4, dateFrom, 0, 8) > 0)
-                    {
-                        if (DownloadFile(file))
-                        {
-                            counter++;
-                        }
-                    }
-                }
-            }
-
-            if (Verbose)
+            //if (Verbose)
             {
-                TWriteLine($"Загружено {counter}.");
+                TWriteLine($"Загружено {counter} из {list.Length}.");
             }
 
             return 0;
@@ -205,7 +200,7 @@ namespace FTPSReportsDownloader
             }
             catch (WebException e)
             {
-                TWriteLine("Download file -> Error: " + e.Message);
+                TWriteLine("Download file Error: " + e.Message);
                 return new string[] { };
             }
         }
@@ -233,6 +228,15 @@ namespace FTPSReportsDownloader
                     }
                 }
 
+                var file = new FileInfo(path);
+
+                if (file.Exists && file.Length == 0)
+                {
+                    TWriteLine("Файл был скачан нулевой длины и будет удален - проверьте!");
+                    file.Delete();
+                    return false;
+                }
+
                 return true;
             }
             catch (WebException e)
@@ -245,7 +249,7 @@ namespace FTPSReportsDownloader
                     return true; // it's normal to skip it
                 }
 
-                TWriteLine("Download file -> Error: " + e.Message);
+                TWriteLine("Download file Error: " + e.Message);
                 return false;
             }
         }
@@ -297,7 +301,7 @@ namespace FTPSReportsDownloader
                     return 0;
                 }
 
-                TWriteLine("Size of file -> Error: " + e.Message);
+                TWriteLine("Size of file Error: " + e.Message);
                 return -1;
             }
         }
